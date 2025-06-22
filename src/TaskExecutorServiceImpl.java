@@ -1,0 +1,42 @@
+import java.util.concurrent.*;
+
+public class TaskExecutorServiceImpl implements TaskExecutor {
+
+    private final ExecutorService executorService;
+    private final BlockingQueue<QueuedTask<?>> taskQueue;
+    private final Thread schedulerThread;
+
+    public TaskExecutorServiceImpl(int maxConcurrency) {
+        this.executorService = Executors.newFixedThreadPool(maxConcurrency);
+        // We can limit capacity of Queue and deny submission if full
+        this.taskQueue = new LinkedBlockingQueue<>();
+        this.schedulerThread = new Thread(this::scheduleTasks);
+        this.schedulerThread.setDaemon(true);
+        this.schedulerThread.start();
+    }
+
+    @Override
+    public <T> Future<T> submitTask(Task<T> task) {
+        QueuedTask<T> queuedTask = new QueuedTask<>(task);
+        taskQueue.offer(queuedTask);
+        System.out.println("Submitted task with id : " + task.taskUUID());
+        return queuedTask.future;
+    }
+
+    private void scheduleTasks() {
+        while (!Thread.currentThread().isInterrupted()) {
+            try {
+                QueuedTask<?> queuedTask = taskQueue.take();
+                executorService.submit(queuedTask::run);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+
+    public void shutdown() {
+        schedulerThread.interrupt();
+        executorService.shutdown();
+    }
+}
