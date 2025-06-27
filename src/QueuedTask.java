@@ -1,16 +1,19 @@
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class QueuedTask<T> {
     final Task<T> task;
-    final CompletableFuture<T> future = new CompletableFuture<>();
+    final CompletableFuture<T> future;
 
     public QueuedTask(Task<T> task) {
         this.task = task;
+        this.future = new CompletableFuture<T>().exceptionally(e -> {
+            System.err.println("Exception caught while executing task id : " + this.task.taskUUID() + " with exception : " + e.getMessage());
+            return null;
+        });
     }
 
     public void run() {
-        ReentrantLock groupLock = TaskGroupLockManager.getGroupLock(this.task);
+        GroupLock groupLock = TaskGroupLockManager.getGroupLock(this.task);
         groupLock.lock();
         try {
             T result = task.taskAction().call();
@@ -18,7 +21,7 @@ public class QueuedTask<T> {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            future.completeExceptionally(e);
         } finally {
             groupLock.unlock();
         }
