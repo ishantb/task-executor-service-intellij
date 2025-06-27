@@ -17,6 +17,10 @@ public class TaskExecutorServiceImpl implements TaskExecutor {
 
     @Override
     public <T> Future<T> submitTask(Task<T> task) {
+        if (schedulerThread.isInterrupted()) {
+            System.err.println("Unable to submit task as Task Executor Service had been shutdown.");
+            return null;
+        }
         QueuedTask<T> queuedTask = new QueuedTask<>(task);
         taskQueue.offer(queuedTask);
         System.out.println("Submitted task with id : " + task.taskUUID());
@@ -33,10 +37,16 @@ public class TaskExecutorServiceImpl implements TaskExecutor {
                 break;
             }
         }
+
+        // Submit pending tasks waiting in queue to be scheduled if schedulerThread is interrupted
+        while (!taskQueue.isEmpty()) {
+            QueuedTask<?> queuedTask = taskQueue.poll();
+            executorService.submit(queuedTask::run);
+        }
+        executorService.shutdown();
     }
 
     public void shutdown() {
         schedulerThread.interrupt();
-        executorService.shutdown();
     }
 }

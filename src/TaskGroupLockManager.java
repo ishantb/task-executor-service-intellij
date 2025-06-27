@@ -1,12 +1,26 @@
 import java.util.UUID;
 import java.util.concurrent.*;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class TaskGroupLockManager {
     // We can limit number of groups (Blocking tasks in Queue and not polling task till group size reduced)
-    private static final ConcurrentHashMap<UUID, ReentrantLock> groupLocks = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<UUID, GroupLock> groupLocks = new ConcurrentHashMap<>();
 
-    public static ReentrantLock getGroupLock(Task<?> task) {
-        return groupLocks.computeIfAbsent(task.taskGroup().groupUUID(), id -> new ReentrantLock(true));
+    // Synchronized on taskGroup and hence race condition between below 2 methods - get and remove on same group lock avoided
+    public static GroupLock getGroupLock(Task<?> task) {
+        TaskGroup taskGroup = task.taskGroup();
+        synchronized (taskGroup) {
+            GroupLock groupLock = groupLocks.computeIfAbsent(taskGroup.groupUUID(), id -> new GroupLock(taskGroup));
+            groupLock.activeThreadCount.incrementAndGet();
+            return groupLock;
+        }
+    }
+
+    public static void removeGroupLockIfUnused(GroupLock groupLock) {
+        synchronized (groupLock.taskGroup) {
+            // Runs like garbage collector - Remove unused group lock from groupLocks map
+            if (groupLock.activeThreadCount.decrementAndGet() == 0) {
+                groupLocks.remove(groupLock.taskGroup.groupUUID());
+            }
+        }
     }
 }
