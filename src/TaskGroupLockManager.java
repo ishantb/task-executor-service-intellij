@@ -9,7 +9,10 @@ public class TaskGroupLockManager {
     public static GroupLock getGroupLock(Task<?> task) {
         TaskGroup taskGroup = task.taskGroup();
         synchronized (taskGroup) {
-            GroupLock groupLock = groupLocks.computeIfAbsent(taskGroup.groupUUID(), id -> new GroupLock(taskGroup));
+            GroupLock groupLock = groupLocks.computeIfAbsent(taskGroup.groupUUID(), id -> {
+                System.out.println("Creating new Group Lock for Task Group id : " + id);
+                return new GroupLock(taskGroup);
+            });
             groupLock.activeThreadCount.incrementAndGet();
             return groupLock;
         }
@@ -20,6 +23,7 @@ public class TaskGroupLockManager {
             // Runs like garbage collector - Remove unused group lock from groupLocks map
             if (groupLock.activeThreadCount.decrementAndGet() == 0) {
                 groupLocks.remove(groupLock.taskGroup.groupUUID());
+                System.out.println("Removing Unused Group Lock for Task Group id : " + groupLock.taskGroup.groupUUID());
             }
         }
     }

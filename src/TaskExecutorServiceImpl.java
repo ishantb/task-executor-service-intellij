@@ -24,7 +24,7 @@ public class TaskExecutorServiceImpl implements TaskExecutor {
         QueuedTask<T> queuedTask = new QueuedTask<>(task);
         taskQueue.offer(queuedTask);
         System.out.println("Submitted task with id : " + task.taskUUID());
-        return queuedTask.future;
+        return queuedTask.exceptionHandledFuture;
     }
 
     private void scheduleTasks() {
@@ -44,6 +44,24 @@ public class TaskExecutorServiceImpl implements TaskExecutor {
             executorService.submit(queuedTask::run);
         }
         executorService.shutdown();
+
+        Thread.interrupted(); //Remove interrupted status from thread to wait for termination
+        // Wait for completion of all tasks
+        while (!executorService.isTerminated()) {
+            try {
+                if (executorService.awaitTermination(1, TimeUnit.SECONDS)) {
+                    break;
+                } else {
+                    System.out.println("Waiting for execution of submitted tasks for shutdown...");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                System.out.println("Interrupted while waiting for execution of submitted tasks. Shutting down forcefully now.");
+                executorService.shutdownNow();
+                return;
+            }
+        }
+        System.out.println("Executor Service is terminated after execution of all submitted tasks.");
     }
 
     public void shutdown() {

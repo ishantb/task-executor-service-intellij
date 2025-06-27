@@ -16,19 +16,24 @@ public class Main {
                 UUID.randomUUID(),
                 taskGroup1,
                 TaskType.Read,
-                () -> 1
+                () -> {
+                    Thread.sleep(500);
+                    return 1;
+                }
         );
         Task<Integer> task2 = new Task<>(
                 UUID.randomUUID(),
                 taskGroup2,
                 TaskType.Write,
-                () -> 2
+                () -> {
+                    throw new RuntimeException("Some Exception");
+                }
         );
-        Task<Integer> task3 = new Task<>(
+        Task<String> task3 = new Task<>(
                 UUID.randomUUID(),
                 taskGroup1,
                 TaskType.Read,
-                () -> 3
+                () -> "3"
         );
 
         List<Future<?>> futureList = new ArrayList<>();
@@ -38,7 +43,11 @@ public class Main {
 
         int i = 1;
         for (Future<?> future : futureList) {
-            System.out.println("Result of " + i++ + "th submitted task is : " + future.get());
+            var result = future.get();
+            if (result == null) {
+                result = "NULL";
+            }
+            System.out.println("Result of " + i++ + "th submitted task is : " + result);
         }
 
         executor.shutdown();
